@@ -46,12 +46,19 @@ let mutable semVersion      = null : string
 let mutable assemblyVersion = null : string
 let mutable fileVersion     = null : string
 
+let argumentCustomizer      = Func<ProcessArgumentBuilder,ProcessArgumentBuilder> (fun args ->
+                                args
+                                  .Append("/p:Version={0}"        , semVersion      )
+                                  .Append("/p:AssemblyVersion={0}", assemblyVersion )
+                                  .Append("/p:FileVersion={0}"    , fileVersion     ))
+
 //////////////////////////////////////////////////////////////////////
 // SETUP / TEARDOWN
 //////////////////////////////////////////////////////////////////////
 
 CakeBridge.Setup(fun context ->
     context.Information("Setting up...")
+
     solution <- context.GetFiles("./src/*.sln").FirstOrDefault()
     if solution = null then failwith "Failed to find solution"
 
@@ -83,9 +90,10 @@ let restore = CakeBridge.Task("Restore").IsDependentOn(clean).Does(fun () ->
 
 let build = CakeBridge.Task("Build").IsDependentOn(restore).Does(fun () ->
     context.DotNetCoreBuild(
-      solution.FullPath,
-      DotNetCoreBuildSettings(  Configuration         = configuration,
-                                ArgumentCustomization = (fun args -> args.Append("/p:Version={0}", semVersion)                                          .Append("/p:AssemblyVersion={0}", assemblyVersion)                                          .Append("/p:FileVersion={0}", fileVersion))))
+      solution.FullPath                           ,
+      DotNetCoreBuildSettings(
+        Configuration         = configuration     ,
+        ArgumentCustomization = argumentCustomizer))
   )
 
 let pack = CakeBridge.Task("Pack").IsDependentOn(build).Does(fun () ->
@@ -94,18 +102,15 @@ let pack = CakeBridge.Task("Pack").IsDependentOn(build).Does(fun () ->
 
     for project in context.GetFiles("./src/**/*.csproj").Where(fun file -> file.FullPath.EndsWith("Tests") |> not) do
         context.DotNetCorePack(
-          project.FullPath,
+          project.FullPath                            ,
           DotNetCorePackSettings(
-            Configuration         = configuration,
-            OutputDirectory       = nugetRoot,
-            NoBuild               = true,
-            ArgumentCustomization = (fun args -> args.Append("/p:Version={0}", semVersion).Append("/p:AssemblyVersion={0}", assemblyVersion).Append("/p:FileVersion={0}", fileVersion))
-          )
-    )
+            Configuration         = configuration     ,
+            OutputDirectory       = nugetRoot         ,
+            NoBuild               = true              ,
+            ArgumentCustomization = argumentCustomizer))
   )
 
-CakeBridge.Task("Default")
-    .IsDependentOn(pack)
+CakeBridge.Task("Default").IsDependentOn(pack)
 
 //////////////////////////////////////////////////////////////////////
 // EXECUTION

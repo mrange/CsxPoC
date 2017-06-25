@@ -26,19 +26,21 @@ open System.Linq
 //  3. More idiomatic handling of global state
 
 
+// "Magic" to handle implicit conversion (which F# isn't really supporting)
 let inline (!>) (x:^a) : ^b = ((^a or ^b) : (static member op_Implicit : ^a -> ^b) x)
+let context                 = CakeBridge.Context
 
 //////////////////////////////////////////////////////////////////////
 // ARGUMENTS
 //////////////////////////////////////////////////////////////////////
-let target        = CakeBridge.Context.Argument("target", "Default")
-let configuration = CakeBridge.Context.Argument("configuration", "Release")
+let target        = context.Argument("target", "Default")
+let configuration = context.Argument("configuration", "Release")
 
 //////////////////////////////////////////////////////////////////////
 // GLOBALS
 //////////////////////////////////////////////////////////////////////
-let directoryPath           = !> CakeBridge.Context.Directory("./nuget")
-let nugetRoot               = CakeBridge.Context.MakeAbsolute(directoryPath)
+let directoryPath           = !> context.Directory("./nuget")
+let nugetRoot               = context.MakeAbsolute(directoryPath)
 let mutable solution        = null : FilePath
 let mutable semVersion      = null : string
 let mutable assemblyVersion = null : string
@@ -50,10 +52,10 @@ let mutable fileVersion     = null : string
 
 CakeBridge.Setup(fun context ->
     context.Information("Setting up...")
-    solution <- CakeBridge.Context.GetFiles("./src/*.sln").FirstOrDefault()
+    solution <- context.GetFiles("./src/*.sln").FirstOrDefault()
     if solution = null then failwith "Failed to find solution"
 
-    let releaseNotes  =   CakeBridge.Context.ParseReleaseNotes(!> "./ReleaseNotes.md")
+    let releaseNotes  =   context.ParseReleaseNotes(!> "./ReleaseNotes.md")
     assemblyVersion   <-  releaseNotes.Version.ToString()
     fileVersion       <-  assemblyVersion
     semVersion        <-  assemblyVersion + "-alpha"
@@ -70,28 +72,28 @@ CakeBridge.Teardown(fun context ->
 //////////////////////////////////////////////////////////////////////
 
 let clean = CakeBridge.Task("Clean").Does(fun () ->
-    CakeBridge.Context.CleanDirectories("./src/**/bin/" + configuration)
-    CakeBridge.Context.CleanDirectories("./src/**/obj/" + configuration)
-    CakeBridge.Context.CleanDirectory(nugetRoot)
+    context.CleanDirectories("./src/**/bin/" + configuration)
+    context.CleanDirectories("./src/**/obj/" + configuration)
+    context.CleanDirectory(nugetRoot)
   )
 
 let restore = CakeBridge.Task("Restore").IsDependentOn(clean).Does(fun () ->
-    CakeBridge.Context.DotNetCoreRestore(solution.FullPath)
+    context.DotNetCoreRestore(solution.FullPath)
   )
 
 let build = CakeBridge.Task("Build").IsDependentOn(restore).Does(fun () ->
-    CakeBridge.Context.DotNetCoreBuild(
+    context.DotNetCoreBuild(
       solution.FullPath,
       DotNetCoreBuildSettings(  Configuration         = configuration,
                                 ArgumentCustomization = (fun args -> args.Append("/p:Version={0}", semVersion)                                          .Append("/p:AssemblyVersion={0}", assemblyVersion)                                          .Append("/p:FileVersion={0}", fileVersion))))
   )
 
 let pack = CakeBridge.Task("Pack").IsDependentOn(build).Does(fun () ->
-    if CakeBridge.Context.DirectoryExists(nugetRoot) |> not then
-        CakeBridge.Context.CreateDirectory(nugetRoot)
+    if context.DirectoryExists(nugetRoot) |> not then
+        context.CreateDirectory(nugetRoot)
 
-    for project in CakeBridge.Context.GetFiles("./src/**/*.csproj").Where(fun file -> file.FullPath.EndsWith("Tests") |> not) do
-        CakeBridge.Context.DotNetCorePack(
+    for project in context.GetFiles("./src/**/*.csproj").Where(fun file -> file.FullPath.EndsWith("Tests") |> not) do
+        context.DotNetCorePack(
           project.FullPath,
           DotNetCorePackSettings(
             Configuration         = configuration,

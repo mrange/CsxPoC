@@ -115,6 +115,7 @@ let pack =
     let projectFiles =
       context.GetFiles "./src/**/*.csproj"
       |> Seq.filter (fun file -> file.FullPath.EndsWith "Tests" |> not)
+      |> Seq.toArray
 
     for project in projectFiles do
         context.DotNetCorePack(

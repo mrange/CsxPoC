@@ -25,6 +25,7 @@ open System.Linq
 //  2. Remove the need to specify CakeBridge everywhere
 //  3. More idiomatic handling of global state
 
+// Execute script with: fsi build.fsx
 
 // "Magic" to handle implicit conversion (which F# isn't really supporting)
 let inline (!>) (x:^a) : ^b = ((^a or ^b) : (static member op_Implicit : ^a -> ^b) x)
